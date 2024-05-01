@@ -1,4 +1,4 @@
 How to launch
 
-npx webpack
+npx webpack\n
 node index.js
