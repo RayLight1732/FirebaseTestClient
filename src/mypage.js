@@ -1,83 +1,78 @@
-import { getFirestore, doc, getDoc, collection, setDoc, onSnapshot } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
-import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage"
-import firebaseApp from "./initialize"
+import { onAuthStateChanged } from "./auth.mjs";
+import { getInvolvedMusic, getMusicURLs } from "./music.mjs";
+import {
+  updateProfileUI,
+  uploadProfile,
+  getProfileImageUrl,
+} from "./profile.mjs";
 
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-
-const db = getFirestore(firebaseApp);
-
-
-const auth = getAuth()
-const button = document.getElementById('update')
-auth.onAuthStateChanged((user) => {
-    if (!user) {
-        window.location.href = 'http://localhost:3000'
+const redirectHandler = () => (window.location.href = "http://localhost:3000");
+async function setup() {
+  //画像選択用UIにイベントリスナーを追加
+  const imageSelector = document.getElementById("image_selector");
+  const figureImage = document.getElementById("figure_image");
+  const figure = document.getElementById("figure");
+  imageSelector.addEventListener("change", (event) => {
+    //画像が選択されたことを表すプロパティ
+    imageSelector.changed = true;
+    const [file] = event.target.files;
+    if (file) {
+      figureImage.setAttribute("src", URL.createObjectURL(file));
+      figure.style.display = "block";
     } else {
-        setup()
+      figure.style.display = "none";
     }
-})
-function setup() {
-    console.log('検証完了')
-    const imageSelector = document.getElementById('image_selector')
-    const figureImage = document.getElementById('figure_image')
-    const figure = document.getElementById('figure')
-    imageSelector.addEventListener('change', (event) => {
-        const [file] = event.target.files
-        if (file) {
-            figureImage.setAttribute('src', URL.createObjectURL(file))
-            figure.style.display = 'block'
-        } else {
-            figure.style.display = 'none'
-        }
+  });
+  //プロフィール画像のURLを取得し、取得に成功したら表示する
+  getProfileImageUrl()
+    .then((url) => {
+      if (url) {
+        figureImage.setAttribute("src", url);
+        figure.style.display = "block";
+      } else {
+        figure.style.display = "none";
+      }
     })
-
-    const name = document.getElementById('name')
-    const favorite = document.getElementById('favorite')
-    const part = document.getElementById('part_selector')
-    const storage = getStorage()
-    const storageRef = ref(storage, "users/" + auth.currentUser.uid + "/profile.png")
-
-    getDownloadURL(storageRef).then(url => {
-        if (url) {
-            figureImage.setAttribute('src', url)
-            figure.style.display = 'block'
-        } else {
-            figure.style.display = 'none'
-        }
-    }).catch(ignore => { });
-    const unsub = onSnapshot(doc(db, "users", auth.currentUser.uid), (doc) => {
-        console.log('データ取得1')
-        console.log(doc.data())
-        if (doc.data()) {
-            name.value = doc.data().name
-            favorite.value = doc.data().favorite
-            part.value = doc.data().part
-        }
+    .catch((error) => {
+      console.error("Failed to retrieve the profile image.");
+      console.log(error);
     });
-    button.addEventListener('click', async () => {
-        if (auth.currentUser) {
-            console.log('current user is not null')
-            //画像のアップロード
-            const storage = getStorage()
-            const storageRef = ref(storage, "users/" + auth.currentUser.uid + "/profile.png")
-            const [file] = imageSelector.files
-            await uploadBytes(storageRef, file).then((snapshot) => {
-                console.log('upload success')
-            })
 
-            //ユーザーデータのアップロード
-            const userRef = collection(db, "users")
-            await setDoc(doc(userRef, auth.currentUser.uid), {
-                uid: auth.currentUser.uid,
-                name: name.value,
-                favorite: favorite.value,
-                part: part.value
-            })
-        }
-    })
+  const name = document.getElementById("name");
+  const favorite = document.getElementById("favorite");
+  const part = document.getElementById("part_selector");
+  updateProfileUI((doc) => {
+    if (doc.data()) {
+      name.value = doc.data().name;
+      favorite.value = doc.data().favorite;
+      part.value = doc.data().part;
+    }
+  });
+  const button = document.getElementById("update");
+  button.addEventListener("click", () => {
+    const image = imageSelector.changed ? imageSelector.files[0] : null;
+    console.log(name.value);
+    uploadProfile(name.value, favorite.value, part.value, image);
+  });
+
+  //制作に携わった楽曲を取得
+  try {
+    const involvedMusic = await getInvolvedMusic();
+    involvedMusic.forEach((doc) => {
+      console.log(`${doc.data().name}`);
+      getMusicURLs(doc.data().authorIDs, doc.data().musicRefs)
+        .then((urls) => {
+          console.log(urls);
+        })
+        .catch((error) => {
+          console.error("There was an error while retrieving the music URLs.");
+          console.log(error);
+        });
+    });
+  } catch (error) {
+    console.error("There was an error while retrieving the involved musics.");
+    console.log(error);
+  }
 }
+
+onAuthStateChanged(setup, redirectHandler);
