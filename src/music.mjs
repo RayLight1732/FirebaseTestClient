@@ -9,6 +9,8 @@ import {
   where,
   limit as funcLimit,
   startAfter as funcStartAfter,
+  setDoc,
+  updateDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
@@ -32,23 +34,25 @@ export function updateDispatchUI(onSnapshotCallback) {
 /**
  * 楽曲をアップロードする
  * @param {File} musicFile 担当パートの音楽
- * @returns 成功した場合true
+ * @param {string} [name] 楽曲の名前
  * @throws アップロードが失敗した場合エラー
  */
-export async function uploadMusic(musicFile) {
-  try {
-    const result = await auth.currentUser.getIdTokenResult(true);
-    console.log(JSON.stringify(result.claims));
-    const storageRef = ref(
-      storage,
-      `users/${auth.currentUser.uid}/music/${result.claims.ref}`
-    );
-    await uploadBytes(storageRef, musicFile);
-    console.log("upload success");
-    return true;
-  } catch (error) {
-    throw error;
+export async function uploadMusic(musicFile, name) {
+  const result = await auth.currentUser.getIdTokenResult(true);
+
+  if (name) {
+    await setDoc(doc(db, "music_names", auth.currentUser.uid), {
+      name: name,
+      ref: result.claims.ref,
+    });
   }
+
+  const storageRef = ref(
+    storage,
+    `users/${auth.currentUser.uid}/music/${result.claims.ref}`
+  );
+  await uploadBytes(storageRef, musicFile);
+  console.log("upload success");
 }
 
 /**
@@ -57,14 +61,13 @@ export async function uploadMusic(musicFile) {
  * @param {Array<string>} refs 楽曲の参照の配列 インデックス0:ドラム,1:ベース,2:ギター,3:ボーカル
  * @returns {Array<URL>} ダウンロード用URLの配列
  */
-export async function getMusicURLs(authorIds, refs) {
+export async function getMusicURLs(authorIDs, refs) {
   try {
-    console.log(authorIds);
-    const promises = authorIds.map((authorID, index) =>
+    console.log(authorIDs);
+    const promises = authorIDs.map((authorID, index) =>
       getDownloadURL(ref(storage, `users/${authorID}/music/${refs[index]}`))
     );
-    const result = await Promise.all(promises);
-    return result;
+    return await Promise.all(promises);
   } catch (error) {
     throw error;
   }

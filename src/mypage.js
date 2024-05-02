@@ -24,19 +24,19 @@ async function setup() {
     }
   });
   //プロフィール画像のURLを取得し、取得に成功したら表示する
-  getProfileImageUrl()
-    .then((url) => {
-      if (url) {
-        figureImage.setAttribute("src", url);
-        figure.style.display = "block";
-      } else {
-        figure.style.display = "none";
-      }
-    })
-    .catch((error) => {
-      console.error("Failed to retrieve the profile image.");
-      console.log(error);
-    });
+  const url = await getProfileImageUrl();
+
+  try {
+    if (url) {
+      figureImage.setAttribute("src", url);
+      figure.style.display = "block";
+    } else {
+      figure.style.display = "none";
+    }
+  } catch (error) {
+    console.error("Failed to retrieve the profile image.");
+    console.log(error);
+  }
 
   const name = document.getElementById("name");
   const favorite = document.getElementById("favorite");
